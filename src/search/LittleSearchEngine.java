@@ -3,14 +3,6 @@ package search;
 import java.io.*;
 import java.util.*;
 
-/**
- * This class encapsulates an occurrence of a keyword in a document. It stores the
- * document name, and the frequency of occurrence in that document. Occurrences are
- * associated with keywords in an index hash table.
- * 
- * @author Sesh Venugopal
- * 
- */
 class Occurrence {
 	/**
 	 * Document in which a keyword occurs.
@@ -107,10 +99,34 @@ public class LittleSearchEngine {
 	 * @throws FileNotFoundException If the document file is not found on disk
 	 */
 	public HashMap<String,Occurrence> loadKeyWords(String docFile) 
-	throws FileNotFoundException {
+			throws FileNotFoundException {
 		// COMPLETE THIS METHOD
-		// THE FOLLOWING LINE HAS BEEN ADDED TO MAKE THE METHOD COMPILE
-		return null;
+
+		HashMap<String,Occurrence> retWords = new HashMap<String,Occurrence>();
+		String currWord = null, word = null;
+		Occurrence foundWord = null;
+						
+		Scanner sc = new Scanner(new File(docFile));
+		
+		while ( sc.hasNext() ) {
+			currWord = sc.next();
+			word = getKeyWord(currWord);
+
+			if( word != null ) {	
+
+				if( retWords.containsKey(word) ){
+					foundWord = retWords.get(word);
+					foundWord.frequency++;
+				} else {
+					Occurrence newOcc = new Occurrence(docFile, 1);
+					retWords.put(word, newOcc);
+				}
+			}
+		}
+
+		sc.close();
+
+		return retWords;
 	}
 	
 	/**
@@ -124,6 +140,30 @@ public class LittleSearchEngine {
 	 */
 	public void mergeKeyWords(HashMap<String,Occurrence> kws) {
 		// COMPLETE THIS METHOD
+		
+		ArrayList<Occurrence> tempList = null;
+		
+		for( String key: kws.keySet() ) {
+			
+			Occurrence currOcc = kws.get(key);
+			
+//			System.out.println(currOcc);
+			
+			if( keywordsIndex.containsKey(key) ) {
+				tempList = keywordsIndex.get(key);
+				tempList.add(currOcc);
+
+				insertLastOccurrence(tempList);		
+				keywordsIndex.put(key, tempList);
+
+			} else {
+				tempList = new ArrayList<Occurrence>();				
+
+				tempList.add(currOcc);
+				keywordsIndex.put(key, tempList);
+			}	
+		}
+
 	}
 	
 	/**
@@ -140,8 +180,49 @@ public class LittleSearchEngine {
 	public String getKeyWord(String word) {
 		// COMPLETE THIS METHOD
 		// THE FOLLOWING LINE HAS BEEN ADDED TO MAKE THE METHOD COMPILE
-		return null;
+		String specialChars = ".,?:;!";
+
+		// trim the leading and trailing spaces
+		String retWord = word.trim();	
+		char lastChar = retWord.charAt(retWord.length()-1);
+
+		// trim trailing special chars
+		while( retWord.length() > 1 && specialChars.indexOf(lastChar+"") != -1 ) {
+			retWord = retWord.substring(0, retWord.length()-1);
+			
+			if (retWord.length() > 1) {
+				lastChar = retWord.charAt(retWord.length()-1);				
+			}
+		}
+
+		// is alphabetic
+		if (!isAlphabetic(retWord)) {
+			return null;
+		}
+
+		// is a noise word
+		for( String nw : noiseWords.keySet() ) {
+			if(retWord.equalsIgnoreCase(nw)){
+				return null;
+			}
+		}
+
+		// return LOWERCASE word
+		return retWord.toLowerCase();
 	}
+
+	// is alphabetic letter
+	private boolean isAlphabetic(String word) {
+
+		for(int i = 0; i < word.length(); i++){
+			if(!Character.isLetter(word.charAt(i))){
+				return false;
+			}
+		}
+		
+		return true;
+	}
+	
 	
 	/**
 	 * Inserts the last occurrence in the parameter list in the correct position in the
@@ -158,7 +239,38 @@ public class LittleSearchEngine {
 	public ArrayList<Integer> insertLastOccurrence(ArrayList<Occurrence> occs) {
 		// COMPLETE THIS METHOD
 		// THE FOLLOWING LINE HAS BEEN ADDED TO MAKE THE METHOD COMPILE
-		return null;
+
+		// if the size of the input list is 1
+        if (occs.size()==1) return null;
+
+        ArrayList<Integer> midPointIndexes = new ArrayList<Integer>();
+
+        Occurrence lasOccs = occs.get(occs.size() - 1);
+        int lo = 0, hi = occs.size()-2, mid = 0;
+        
+        //binary search
+        while (lo <= hi) {
+        	
+            mid = (lo + hi) / 2;
+        
+            midPointIndexes.add(mid);
+            
+            if (lasOccs.frequency > occs.get(mid).frequency) {
+                hi = mid - 1;
+            } if (lasOccs.frequency < occs.get(mid).frequency) {
+                lo = mid + 1;
+
+                if (hi <= mid)
+                    mid = mid + 1;
+            } else {
+                break;
+            }
+        }
+        
+        occs.add(mid, lasOccs);
+        occs.remove(occs.size() - 1);
+
+        return midPointIndexes;
 	}
 	
 	/**
@@ -178,6 +290,65 @@ public class LittleSearchEngine {
 	public ArrayList<String> top5search(String kw1, String kw2) {
 		// COMPLETE THIS METHOD
 		// THE FOLLOWING LINE HAS BEEN ADDED TO MAKE THE METHOD COMPILE
-		return null;
+		ArrayList<String> top5search = new ArrayList<String>();
+		ArrayList<Occurrence> kw1List = null, kw2List = null;
+		int top5 = 5;
+		
+		kw1List = keywordsIndex.get(kw1.toLowerCase());
+		kw2List = keywordsIndex.get(kw2.toLowerCase());
+		
+		if (kw1List != null && kw2List == null) {
+
+			for(Occurrence kw1Occ : kw1List) {
+
+				if(top5search.size() >= top5) break;
+
+				if(!top5search.contains(kw1Occ.document)) {
+					top5search.add(kw1Occ.document);
+				}
+			}
+			
+		} else if (kw1List == null && kw2List != null) {
+			
+			for(Occurrence kw2Occ : kw2List) {
+
+				if(top5search.size() >= top5) break;
+
+				if(!top5search.contains(kw2Occ.document)) {
+					top5search.add(kw2Occ.document);
+				}
+			}
+
+		} else if (kw1List != null && kw2List != null) {
+
+			for(Occurrence kw1Occ : kw1List) {
+
+				if(top5search.size() >= top5) break;
+
+				for(Occurrence kw2Occ : kw2List) {
+
+					if(top5search.size() >= top5) break;
+					
+					if(kw2Occ.frequency <= kw1Occ.frequency 
+							&& !top5search.contains(kw1Occ.document)) {
+					
+						top5search.add(kw1Occ.document);
+					
+					} else if (kw2Occ.frequency > kw1Occ.frequency 
+							&& !top5search.contains(kw2Occ.document)) {
+
+						top5search.add(kw2Occ.document);
+
+					}
+				}
+			}
+
+		}
+
+		for(String doc: top5search){
+		System.out.println(doc);
+		}
+		
+		return (top5search.size() == 0 ? null : top5search);
 	}
 }
